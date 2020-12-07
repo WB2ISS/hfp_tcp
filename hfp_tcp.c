@@ -1,11 +1,12 @@
 //
-//  hfp_tcp_server.c
+//  hfp_tcp.c
 //
 //  Serves IQ data using the rtl_tcp protocol
 //    from an Airspy HF+
-//    on iPv6 port 1234
+//    on port 1234
 //
-#define VERSION "v.1.2.117" // b1
+#define VERSION "v.1.2.118"
+//   v.1.2.118 2020-12-31  1pm barry@medoff.com
 //   v.1.2.117 2020-09-02  rhn
 //   v.1.2.112 2019-07-30  0am barry@medoff.com
 //   v.1.2.111 2019-05-05  2pm  rhn
@@ -14,12 +15,10 @@
 //   re-distribution under the BSD 3 clause license permitted
 //
 //   pi :
-//   	cc -std=c99 -lm -lairspyhf -lpthread -Os -o hfp_tcp hfp_tcp_server.c
+//   	cc -std=c99 -lm -lairspyhf -lpthread -O2 -o hfp_tcp hfp_tcp.c
 //
 //   macOS :
-//	clang -lm -llibairspyhf -lpthread -Os -o hfp_tcp hfp_tcp_server.c
-//   					// libairspyhf.1.6.8.dylib
-//   pi :    cc -std=c99 -lm -lairspyhf -O2 -o hfp_tcp hfp_tcp_server.c
+//	    clang -lm -llibairspyhf -lpthread -Os -o hfp_tcp hfp_tcp.c
 //
 //   requires these 2 files to compile
 //     airspyhf.h
@@ -509,8 +508,8 @@ void *connection_handler()
     struct timeval timeout;
     timeout.tv_sec = SOCKET_READ_TIMEOUT_SEC;
     timeout.tv_usec = 0;
-    setsockopt( gClientSocketID, SOL_SOCKET, SO_RCVTIMEO,
-               &timeout, sizeof(timeout) );
+    //setsockopt( gClientSocketID, SOL_SOCKET, SO_RCVTIMEO,
+    //           &timeout, sizeof(timeout) );
 
     n = 1;
     while ((n > 0) && (sendErrorFlag == 0)) {
