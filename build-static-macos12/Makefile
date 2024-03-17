@@ -19,6 +19,11 @@ LIBx86 =      $(LIBUSBSTATICDIRx86)/libusb-1.0.a \
 LIBARM =      $(LIBUSBSTATICDIRARM)/libusb-1.0.a \
 							$(LIBUSBSTATICDIRARM)/darwin_usb.o
 
+
+EXECUTABLE = 	hfp_tcp
+FOLDER = 			hfp_tcp-v.1.2.118-macos12
+DMG	=					hfp_tcp-v.1.2.118-macos12.dmg
+
 hfp_tcp:			$(SRCDIR)/hfp_tcp.c
 
 								clang $(SOURCE) $(AIRSPYSOURCE) $(LIBx86) \
@@ -46,3 +51,21 @@ hfp_tcp:			$(SRCDIR)/hfp_tcp.c
 								lipo -archs hfp_tcp
 
 								otool -L hfp_tcp
+
+
+dmg:						hfp_tcp
+								# Place Universal Binary Executable in Folder
+								cp $(EXECUTABLE) $(FOLDER)
+								# Codesign Executable
+								codesign -vf --timestamp --options runtime --sign "Developer ID Application: Transition Technology Ventures, LLC (6V82P5ET42)" $(FOLDER)/$(EXECUTABLE)
+								# Create .dmg from the Folder
+								hdiutil create -fs HFS+ -srcfolder $(FOLDER) -volname $(FOLDER) $(FOLDER).dmg
+								# Codesign .dmg
+								codesign -vf --timestamp --options runtime --sign "Developer ID Application: Transition Technology Ventures, LLC (6V82P5ET42)" $(DMG)
+								codesign --verify --verbose $(DMG)
+								# Notarize .dmg
+								xcrun notarytool submit $(DMG) --keychain-profile "SDR" --wait
+								spctl -a -t open --context context:primary-signature -v $(DMG)
+								# Staple Ticket to .dmg and Validate
+								xcrun stapler staple  xcrun stapler $(DMG)
+								xcrun stapler validate $(DMG)
