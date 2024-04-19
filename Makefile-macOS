@@ -1,0 +1,80 @@
+####    Makefile-macOS
+###
+###
+#
+#	cd <xxxxx>/hfp_tcp
+# rm -rf build
+# mkdir build
+# cd build
+# make -f ../Makefile-macOS
+
+
+
+LIBUSBSTATICDIRx86  = ../../libusb-1.0.26/build-static-x86_64-macos12
+LIBUSBSTATICDIRARM  = ../../libusb-1.0.26/build-static-arm64-macos12
+LIBUSBINCLUDE				= ../../libusb-1.0.26/libusb
+
+LIBAIRSPYHFSRC			= ../../airspyhf/libairspyhf/src
+LIBAIRSPYHFINCLUDE	= ../../airspyhf/libairspyhf/src
+
+SRCDIR = ..
+
+SOURCE    					=   $(SRCDIR)/hfp_tcp.c
+AIRSPYSOURCE				=		$(LIBAIRSPYHFSRC)/airspyhf.c $(LIBAIRSPYHFSRC)/iqbalancer.c
+
+LIBx86 =      $(LIBUSBSTATICDIRx86)/libusb-1.0.a \
+							$(LIBUSBSTATICDIRx86)/darwin_usb.o
+
+LIBARM =      $(LIBUSBSTATICDIRARM)/libusb-1.0.a \
+							$(LIBUSBSTATICDIRARM)/darwin_usb.o
+
+
+EXECUTABLE = 	hfp_tcp
+FOLDER = 			hfp_tcp-v.1.2.118-macos12
+DMG	=					hfp_tcp-v.1.2.118-macos12.dmg
+
+hfp_tcp:			$(SRCDIR)/hfp_tcp.c
+
+								clang $(SOURCE) $(AIRSPYSOURCE) $(LIBx86) \
+								    -framework Foundation  \
+							      -framework IOKit  \
+										-framework Security \
+										-I. \
+										-I$(LIBAIRSPYHFINCLUDE) \
+										-I$(LIBUSBINCLUDE) \
+										-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include \
+							      -target x86_64-apple-macos12 -lm -o hfp_tcp-x86_64
+
+								clang $(SOURCE) $(AIRSPYSOURCE) $(LIBARM) \
+										 -framework Foundation  \
+										 -framework IOKit  \
+										 -framework Security \
+										 -I. \
+										 -I$(LIBAIRSPYHFINCLUDE) \
+										 -I$(LIBUSBINCLUDE) \
+										 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include \
+										 -target arm64-apple-macos12 -lm -o hfp_tcp-arm64
+
+								lipo -create -output hfp_tcp hfp_tcp-x86_64 hfp_tcp-arm64
+								lipo -archs hfp_tcp
+								otool -L hfp_tcp
+
+
+dmg:						hfp_tcp
+
+								 mkdir $(FOLDER)
+								 # Place Universal Binary Executable in Folder
+								 cp $(EXECUTABLE) $(FOLDER)
+								 # Codesign Executable
+								 codesign -vf --timestamp --options runtime --sign "Developer ID Application: Transition Technology Ventures, LLC (6V82P5ET42)" $(FOLDER)/$(EXECUTABLE)
+								 # Create .dmg from the Folder
+								 hdiutil create -fs HFS+ -srcfolder $(FOLDER) -volname $(FOLDER) $(FOLDER).dmg
+								 # Codesign .dmg
+								 codesign -vf --timestamp --options runtime --sign "Developer ID Application: Transition Technology Ventures, LLC (6V82P5ET42)" $(DMG)
+								 codesign --verify --verbose $(DMG)
+								 # Notarize .dmg
+								 xcrun notarytool submit $(DMG) --keychain-profile "SDR" --wait
+								 spctl -a -t open --context context:primary-signature -v $(DMG)
+								 # Staple Ticket to .dmg and Validate
+								 xcrun stapler staple  xcrun stapler $(DMG)
+								 xcrun stapler validate $(DMG)
