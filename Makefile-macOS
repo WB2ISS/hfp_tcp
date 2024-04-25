@@ -33,6 +33,10 @@ EXECUTABLE = 	hfp_tcp
 FOLDER = 			hfp_tcp-v.1.2.118-macos12
 DMG	=					hfp_tcp-v.1.2.118-macos12.dmg
 
+PKG	=					hfp_tcp-v.1.2.118-macos12.pkg
+
+INSTALLLOCATION = /usr/local/bin
+
 hfp_tcp:			$(SRCDIR)/hfp_tcp.c
 
 								clang $(SOURCE) $(AIRSPYSOURCE) $(LIBx86) \
@@ -78,3 +82,14 @@ dmg:						hfp_tcp
 								 # Staple Ticket to .dmg and Validate
 								 xcrun stapler staple  xcrun stapler $(DMG)
 								 xcrun stapler validate $(DMG)
+
+
+pkg:						hfp_tcp
+
+
+								 mkdir Product
+								 cp $(EXECUTABLE)	Product
+								 pkgbuild --root ./Product \
+								 					--identifier $(EXECUTABLE) \
+								 					--install-location /usr/local/bin/ \
+													$(PKG)
