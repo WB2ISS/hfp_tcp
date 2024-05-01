@@ -18,19 +18,23 @@ LIBAIRSPYHFSRC			= ../../airspyhf/libairspyhf/src
 LIBAIRSPYHFINCLUDE	= ../../airspyhf/libairspyhf/src
 
 SRCDIR = ..
+SOURCE = $(SRCDIR)/hfp_tcp.c
 
-SOURCE    					=   $(SRCDIR)/hfp_tcp.c
-AIRSPYSOURCE				=		$(LIBAIRSPYHFSRC)/airspyhf.c $(LIBAIRSPYHFSRC)/iqbalancer.c
+AIRSPYSOURCE = $(LIBAIRSPYHFSRC)/airspyhf.c $(LIBAIRSPYHFSRC)/iqbalancer.c
 
-LIBx86 =      $(LIBUSBSTATICDIRx86)/libusb-1.0.a \
+LIBx86      = $(LIBUSBSTATICDIRx86)/libusb-1.0.a \
 							$(LIBUSBSTATICDIRx86)/darwin_usb.o
 
-LIBARM =      $(LIBUSBSTATICDIRARM)/libusb-1.0.a \
+LIBARM      = $(LIBUSBSTATICDIRARM)/libusb-1.0.a \
 							$(LIBUSBSTATICDIRARM)/darwin_usb.o
 
 
 EXECUTABLE 	= hfp_tcp
-FOLDER 			= hfp_tcp-v.1.2.118-macos12
+VERSION     = 1.2.118
+MACOS				= macos12
+PROFILE     = "SDR"
+
+FOLDER 			= $(EXECUTABLE)-$(VERSION)-$(MACOS)
 DMG					= $(FOLDER).dmg
 PKG					= $(FOLDER).pkg
 
@@ -39,7 +43,7 @@ INSTALLID		= "Developer ID Installer: Transition Technology Ventures, LLC (6V82P
 
 INSTALL 		= /usr/local/bin
 
-hfp_tcp:			$(SRCDIR)/hfp_tcp.c
+hfp_tcp:			$(SOURCE)
 
 								clang $(SOURCE) $(AIRSPYSOURCE) $(LIBx86) \
 								    -framework Foundation  \
@@ -49,7 +53,8 @@ hfp_tcp:			$(SRCDIR)/hfp_tcp.c
 										-I$(LIBAIRSPYHFINCLUDE) \
 										-I$(LIBUSBINCLUDE) \
 										-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include \
-							      -target x86_64-apple-macos12 -lm -o hfp_tcp-x86_64
+										-lm \
+										-target x86_64-apple-$(MACOS) -o $(EXECUTABLE)-x86_64
 
 								clang $(SOURCE) $(AIRSPYSOURCE) $(LIBARM) \
 										 -framework Foundation  \
@@ -59,34 +64,29 @@ hfp_tcp:			$(SRCDIR)/hfp_tcp.c
 										 -I$(LIBAIRSPYHFINCLUDE) \
 										 -I$(LIBUSBINCLUDE) \
 										 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include \
-										 -target arm64-apple-macos12 -lm -o hfp_tcp-arm64
+										 -lm \
+										 -target arm64-apple-$(MACOS)  -o $(EXECUTABLE)-arm64
 
-								lipo -create -output hfp_tcp hfp_tcp-x86_64 hfp_tcp-arm64
-								lipo -archs hfp_tcp
-								otool -L hfp_tcp
+								lipo -create -output $(EXECUTABLE) $(EXECUTABLE)-x86_64 $(EXECUTABLE)-arm64
+								lipo -archs $(EXECUTABLE)
+								otool -L $(EXECUTABLE)
 
 
-dmg:						hfp_tcp
+dmg:						$(EXECUTABLE)
 
 								 mkdir $(FOLDER)
-								 # Place Universal Binary Executable in Folder
 								 cp $(EXECUTABLE) $(FOLDER)
-								 # Codesign Executable
 								 codesign -vf --timestamp --options runtime --sign $(SIGNID) $(FOLDER)/$(EXECUTABLE)
-								 # Create .dmg from the Folder
 								 hdiutil create -fs HFS+ -srcfolder $(FOLDER) -volname $(FOLDER) $(FOLDER).dmg
-								 # Codesign .dmg
 								 codesign -vf --timestamp --options runtime --sign $(SIGNID) $(DMG)
 								 codesign --verify --verbose $(DMG)
-								 # Notarize .dmg
-								 xcrun notarytool submit $(DMG) --keychain-profile "SDR" --wait
+								 xcrun notarytool submit $(DMG) --keychain-profile $(PROFILE) --wait
 								 spctl -a -t open --context context:primary-signature -v $(DMG)
-								 # Staple Ticket to .dmg and Validate
 								 xcrun stapler staple $(DMG)
 								 xcrun stapler validate $(DMG)
 
 
-pkg:						hfp_tcp
+pkg:						$(EXECUTABLE)
 
 								 mkdir $(FOLDER)-pkg
 								 cp $(EXECUTABLE)	$(FOLDER)-pkg
@@ -97,7 +97,7 @@ pkg:						hfp_tcp
 								 					--sign $(INSTALLID) \
 													$(PKG)
 								pkgutil --check-signature $(PKG)
-								xcrun notarytool submit $(PKG) --keychain-profile "SDR" --wait
+								xcrun notarytool submit $(PKG) --keychain-profile $(PROFILE) --wait
 								xcrun stapler staple $(PKG)
 								xcrun stapler validate $(PKG)
 								spctl --assess --verbose --type install $(PKG)
