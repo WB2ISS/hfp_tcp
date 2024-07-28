@@ -8,40 +8,40 @@
 # cd build
 # make -f ../Makefile-macOS
 
+EXECUTABLE 					= hfp_tcp
+VERSION     				= 1.2.118
+MACOS								= macos12
+PROFILE     				= "SDR"
 
+SRCDIR 							= ..
+SOURCE 							= $(SRCDIR)/hfp_tcp.c
+LICENSE         		= $(SRCDIR)/$(EXECUTABLE)-license.rtf
+DISTRIBUTION    		= $(SRCDIR)/distribution.xml
+INSTALL         		= /usr/local/bin
+
+AIRSPYSOURCE 				= $(LIBAIRSPYHFSRC)/airspyhf.c $(LIBAIRSPYHFSRC)/iqbalancer.c
+LIBAIRSPYHFSRC			= ../../airspyhf/libairspyhf/src
+LIBAIRSPYHFINCLUDE	= ../../airspyhf/libairspyhf/src
 
 LIBUSBSTATICDIRx86  = ../../libusb-1.0.26/build-static-x86_64-macos12
 LIBUSBSTATICDIRARM  = ../../libusb-1.0.26/build-static-arm64-macos12
 LIBUSBINCLUDE				= ../../libusb-1.0.26/libusb
 
-LIBAIRSPYHFSRC			= ../../airspyhf/libairspyhf/src
-LIBAIRSPYHFINCLUDE	= ../../airspyhf/libairspyhf/src
+LIBx86      				= $(LIBUSBSTATICDIRx86)/libusb-1.0.a \
+										  $(LIBUSBSTATICDIRx86)/darwin_usb.o
 
-SRCDIR = ..
-SOURCE = $(SRCDIR)/hfp_tcp.c
+LIBARM      				= $(LIBUSBSTATICDIRARM)/libusb-1.0.a \
+							        $(LIBUSBSTATICDIRARM)/darwin_usb.o
 
-AIRSPYSOURCE = $(LIBAIRSPYHFSRC)/airspyhf.c $(LIBAIRSPYHFSRC)/iqbalancer.c
+SIGNID							= "Developer ID Application: Transition Technology Ventures, LLC (6V82P5ET42)"
+INSTALLID						= "Developer ID Installer: Transition Technology Ventures, LLC (6V82P5ET42)"
 
-LIBx86      = $(LIBUSBSTATICDIRx86)/libusb-1.0.a \
-							$(LIBUSBSTATICDIRx86)/darwin_usb.o
+FOLDER 							= $(EXECUTABLE)-$(VERSION)-$(MACOS)
+DMG									= $(FOLDER).dmg
+PKG									= $(FOLDER).pkg
+PKGL            		= $(FOLDER)-L.pkg
 
-LIBARM      = $(LIBUSBSTATICDIRARM)/libusb-1.0.a \
-							$(LIBUSBSTATICDIRARM)/darwin_usb.o
 
-
-EXECUTABLE 	= hfp_tcp
-VERSION     = 1.2.118
-MACOS				= macos12
-PROFILE     = "SDR"
-
-FOLDER 			= $(EXECUTABLE)-$(VERSION)-$(MACOS)
-DMG					= $(FOLDER).dmg
-PKG					= $(FOLDER).pkg
-
-SIGNID			= "Developer ID Application: Transition Technology Ventures, LLC (6V82P5ET42)"
-INSTALLID		= "Developer ID Installer: Transition Technology Ventures, LLC (6V82P5ET42)"
-
-INSTALL 		= /usr/local/bin
 
 hfp_tcp:			$(SOURCE)
 
@@ -74,10 +74,11 @@ hfp_tcp:			$(SOURCE)
 
 dmg:						$(EXECUTABLE)
 
-								 mkdir $(FOLDER)
-								 cp $(EXECUTABLE) $(FOLDER)
-								 codesign -vf --timestamp --options runtime --sign $(SIGNID) $(FOLDER)/$(EXECUTABLE)
-								 hdiutil create -fs HFS+ -srcfolder $(FOLDER) -volname $(FOLDER) $(FOLDER).dmg
+								 mkdir $(FOLDER)-dmg
+								 cp $(EXECUTABLE) $(FOLDER)-dmg
+								 cp $(LICENSE) $(FOLDER)-dmg
+								 codesign -vf --timestamp --options runtime --sign $(SIGNID) $(FOLDER)-dmg/$(EXECUTABLE)
+								 hdiutil create -fs HFS+ -srcfolder $(FOLDER)-dmg -volname $(FOLDER)-dmg $(DMG)
 								 codesign -vf --timestamp --options runtime --sign $(SIGNID) $(DMG)
 								 codesign --verify --verbose $(DMG)
 								 xcrun notarytool submit $(DMG) --keychain-profile $(PROFILE) --wait
@@ -95,9 +96,23 @@ pkg:						$(EXECUTABLE)
 								 					--identifier $(EXECUTABLE) \
 								 					--install-location $(INSTALL) \
 								 					--sign $(INSTALLID) \
+													$(PKGL)
+
+								productbuild --package-path $(PKGL) \
+													--sign $(INSTALLID) \
+													--distribution $(DISTRIBUTION) \
+													--resources $(SRCDIR) \
 													$(PKG)
+
 								pkgutil --check-signature $(PKG)
 								xcrun notarytool submit $(PKG) --keychain-profile $(PROFILE) --wait
 								xcrun stapler staple $(PKG)
 								xcrun stapler validate $(PKG)
 								spctl --assess --verbose --type install $(PKG)
+
+all:					$(EXECUTABLE) dmg pkg
+
+
+clean:
+
+								rm -rf $(EXECUTABLE) $(EXECUTABLE)-x86_64 $(EXECUTABLE)-arm64 $(FOLDER)-dmg $(DMG) $(FOLDER)-pkg $(PKGL) $(PKG)

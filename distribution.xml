@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1">
+    <pkg-ref id="hfp_tcp"/>
+    <readme file="hfp_tcp-license.rtf" mime-type="application/rtf"/>
+    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+    <choices-outline>
+        <line choice="default">
+            <line choice="hfp_tcp"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="hfp_tcp" visible="false">
+        <pkg-ref id="hfp_tcp"/>
+    </choice>
+    <pkg-ref id="hfp_tcp" version="0" onConclusion="none">hfp_tcp-1.2.118-macos12-L.pkg</pkg-ref>
+</installer-gui-script>
