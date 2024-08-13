@@ -5,7 +5,7 @@
 //    from an Airspy HF+
 //    on port 1234
 //
-#define VERSION "v.1.2.118"
+#define VERSION "v.1.2.119"
 //   v.1.2.118 2020-12-31  1pm barry@medoff.com
 //   v.1.2.117 2020-09-02  rhn
 //   v.1.2.112 2019-07-30  0am barry@medoff.com

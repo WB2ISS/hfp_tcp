@@ -6,10 +6,10 @@
 # rm -rf build
 # mkdir build
 # cd build
-# make -f ../Makefile-macOS
+# make -f ../Makefile-macOS [hfp_tcp|dmg|pkg|all|clean]
 
 EXECUTABLE 					= hfp_tcp
-VERSION     				= 1.2.118
+VERSION     				= 1.2.119
 MACOS								= macos12
 PROFILE     				= "SDR"
 
