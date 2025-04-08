@@ -5,7 +5,8 @@
 //    from an Airspy HF+
 //    on port 1234
 //
-#define VERSION "v.1.2.118"
+#define VERSION "v.1.2.119"
+//   v.1.2.119 2025-04-08  1pm gruenwelt
 //   v.1.2.118 2020-12-31  1pm barry@medoff.com
 //   v.1.2.117 2020-09-02  rhn
 //   v.1.2.112 2019-07-30  0am barry@medoff.com
@@ -169,48 +170,10 @@ int main(int argc, char *argv[]) {
     sigaction(SIGPIPE, &sigign, NULL);
 #endif
 
-    n = airspyhf_open_sn(&device, serialnum);
-    printf("hf+ open status = %d\n", n);
-    if ((n < 0) || (device == NULL)) { exit(-1); }
-
     airspyhf_lib_version_t version;
     airspyhf_lib_version(&version);
     printf("\nlibairspyhf   %" PRIu32 ".%" PRIu32 ".%" PRIu32 "\n",
            version.major_version, version.minor_version, version.revision);
-
-    char versionString[64];
-    uint8_t versionLength = 64;
-
-    bzero((char *)&versionString[0], 64);
-
-    n = airspyhf_version_string_read(device, &versionString[0], versionLength);
-    if (n == AIRSPYHF_ERROR) {
-    printf("Error reading version string");
-    exit(-1);
-    }
-    printf("hf+ firmware %s\n\n", versionString);
-
-    uint32_t sr_buffer[100];
-    airspyhf_get_samplerates(device, sr_buffer, 0);
-    uint32_t sr_len = sr_buffer[0];
-    printf("number of supported sample rates: %d \n", sr_len);
-    if (sr_len > 0 && sr_len < 100) {
-      numSampleRates     =  sr_len;
-      airspyhf_get_samplerates(device, sr_buffer, sr_len);
-      printf("supported sample rates: ");
-        for (int i=0; i<sr_len; i++) {
-          printf("%d ", sr_buffer[i]);
-        }
-        printf(" \n\n");
-    }
-
-    int sampRate = 768000;
-    n = airspyhf_set_samplerate(device, sampRate);
-    printf("set rate status = %d %d\n", sampRate, n);
-    previousSRate = sampRate;
-    long int f0 = 162450000;
-    n = airspyhf_set_freq(device, f0);
-    printf("set f0 status = %ld %d\n", f0, n);
 
     printf("\nhfp_tcp server started on port %d\n", portno);
 
@@ -282,7 +245,8 @@ static void sighandler(int signum)
             gClientSocketID = -1;
         }
         if (device != NULL) {
-            airspyhf_close(device);
+            airspyhf_stop(device);   // <-- Important to release the USB device once connection has ended
+	    airspyhf_close(device);  // <-- Important to release the USB device once connection has ended
             device = NULL;
         }
     exit(-1);
@@ -454,6 +418,44 @@ void *connection_handler()
     int n = 0;
     int m = 0;
 
+    n = airspyhf_open_sn(&device, serialnum); // Only open Airspy HF+ after client connects
+    printf("hf+ open status = %d\n", n);
+    if ((n < 0) || (device == NULL)) { exit(-1); }
+
+       char versionString[64];
+    uint8_t versionLength = 64;
+
+    bzero((char *)&versionString[0], 64);
+
+    n = airspyhf_version_string_read(device, &versionString[0], versionLength);
+    if (n == AIRSPYHF_ERROR) {
+    printf("Error reading version string");
+    exit(-1);
+    }
+    printf("hf+ firmware %s\n\n", versionString);
+
+    uint32_t sr_buffer[100];
+    airspyhf_get_samplerates(device, sr_buffer, 0);
+    uint32_t sr_len = sr_buffer[0];
+    printf("number of supported sample rates: %d \n", sr_len);
+    if (sr_len > 0 && sr_len < 100) {
+      numSampleRates     =  sr_len;
+      airspyhf_get_samplerates(device, sr_buffer, sr_len);
+      printf("supported sample rates: ");
+        for (int i=0; i<sr_len; i++) {
+          printf("%d ", sr_buffer[i]);
+        }
+        printf(" \n\n");
+    }
+
+    int sampRate = 768000;
+    n = airspyhf_set_samplerate(device, sampRate);
+    printf("set rate status = %d %d\n", sampRate, n);
+    previousSRate = sampRate;
+    long int f0 = 162450000;
+    n = airspyhf_set_freq(device, f0);
+    printf("set f0 status = %ld %d\n", f0, n);
+	
     if (do_exit != 0) { return(NULL); }
 
     m = airspyhf_is_streaming(device);
@@ -501,6 +503,7 @@ void *connection_handler()
     totalSamples  =  0;
     m = airspyhf_start(device, &usb_rcv_callback, &context);
     printf("hf+ start status = %d\n", m);
+    usleep(500 * 1000);  // 500 ms delay after airspyhf_start() to ensure streaming starts cleanly (introducs static on start, cleaner solution?)
     if (m < 0) { exit(-1); }
     usleep(250L * 1000L);
 
@@ -640,6 +643,7 @@ void *connection_handler()
     if (m) {
 	fprintf(stdout,"stopping now 00 \n");
         m = airspyhf_stop(device);
+	airspyhf_close(device);  // <-- Important to release the USB device
         printf("hf+ stop status = %d\n", m);
     }
 
