@@ -643,12 +643,18 @@ void *connection_handler()
     if (m) {
 	fprintf(stdout,"stopping now 00 \n");
         m = airspyhf_stop(device);
-	airspyhf_close(device);  // <-- Important to release the USB device
         printf("hf+ stop status = %d\n", m);
+    }
+
+    if (device != NULL) {
+        airspyhf_close(device);
+        printf("hf+ device closed\n");
+        device = NULL;
     }
 
     close(gClientSocketID);
     gClientSocketID = -1;
+    printf("connection_handler finished, device fully released\n");
     return(param);
 } // connection_handler()
 
