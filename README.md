@@ -35,7 +35,7 @@ ssh-add ~/.ssh/id_rsa
 
 Then build using Docker BuildKit and SSH mount:
 ```bash
-DOCKER_BUILDKIT=1 docker build --ssh default -t hfp_tcp_arm64 .
+DOCKER_BUILDKIT=1 docker build --ssh default -t hfp_tcp_server .
 ```
 
 ---
@@ -47,7 +47,7 @@ DOCKER_BUILDKIT=1 docker build --ssh default -t hfp_tcp_arm64 .
 docker run --rm \
   --device /dev/bus/usb \
   -p 1234:1234 \
-  hfp_tcp_arm64
+  hfp_tcp_server
 ```
 
 ---
