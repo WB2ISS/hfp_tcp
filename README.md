@@ -44,7 +44,8 @@ DOCKER_BUILDKIT=1 docker build --ssh default -t hfp_tcp_server .
 
 
 ```bash
-docker run --rm \
+docker run -d \
+  --name hfp_tcp_server \
   --device /dev/bus/usb \
   -p 1234:1234 \
   hfp_tcp_server
