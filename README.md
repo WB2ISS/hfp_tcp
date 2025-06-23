@@ -1,9 +1,9 @@
-# hfp_tcp for Airspy HF+ (Dockerized, ARM64 Ready)
+# hfp_tcp for  Airspy HF+ Discovery and the like
 
-This is a fork of [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp) with key enhancements to not lock the Airspy hardware when not connected to a client and then release it once the connection is closed.
+This is a fork of [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp) with key enhancements to not lock the Airspy hardware when not connected to a client and also release it once the connection is closed.
 
 > 🐳 Includes a **Dockerfile** for fully containerized building and deployment
-> ✅ **Tested on Orange Pi Zero 2W** and **Airspy Discovery HF+**. Should ideally work on other Pis as well including Raspberry Pi.
+> ✅ Tested on **Orange Pi Zero 2W** and **Airspy Discovery HF+** and remote connected from an iPhone with SDR Receiver app installed. Should be able to run on other arm64 single-board computers like Raspberry Pi or other linux computers.
 
 ---
 
@@ -54,9 +54,7 @@ docker run -d \
 ---
 
 ## 🔧 Alternatively: Manual Build Instructions
-If you want to build outside Docker directly on the host:
-
-👉 Refer to the original project for manual build instructions:
+If you want to build outside Docker directly on the host 👉 Refer to the original project for manual build instructions:
 [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp)
 
 ---
