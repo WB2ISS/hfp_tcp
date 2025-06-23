@@ -1,4 +1,4 @@
-# hfp_tcp for  Airspy HF+ Discovery and the like
+# hfp_tcp for Airspy HF+ Discovery and the like
 
 This is a fork of [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp) with key enhancements to not lock the Airspy hardware when not connected to a client and also release it once the connection is closed.
 
@@ -18,7 +18,7 @@ This is a fork of [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp) with key e
 
 - An ARM64-based Linux system (Raspberry Pi, Orange Pi, etc.)
 - Docker installed
-- An **Airspy HF+** USB SDR device connected
+- An **Airspy HF+** Discovery or similar Airspy SDR device connected
 - SSH keys configured (for cloning dependencies like `libairspyhf` via SSH)
 
 ---
@@ -47,6 +47,7 @@ docker run -d \
   --name hfp_tcp_server \
   --device /dev/bus/usb \
   -p 1234:1234 \
+  --restart unless-stopped \
   hfp_tcp_server
 ```
 
