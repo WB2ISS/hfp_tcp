@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.4
 
-FROM ubuntu:22.04
+### ---- Stage 1: Build ----
+FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ---- Stage: Build ----
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -16,46 +16,35 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /opt
 
-# Add GitHub to known_hosts so SSH won't fail on host verification
-RUN mkdir -p /root/.ssh && \
-    ssh-keyscan github.com >> /root/.ssh/known_hosts
+# SSH known_hosts setup
+RUN mkdir -p /root/.ssh && ssh-keyscan github.com >> /root/.ssh/known_hosts
 
-# Use SSH agent to clone libairspyhf
-# Requires: DOCKER_BUILDKIT=1 and --ssh default
+# Clone and build libairspyhf
 RUN --mount=type=ssh git clone git@github.com:airspy/airspyhf.git
 
-# Build and install libairspyhf
 WORKDIR /opt/airspyhf
 RUN mkdir build && cd build && \
-    cmake .. && \
-    make -j$(nproc) && \
-    make install && \
-    ldconfig
+    cmake .. && make -j$(nproc) && make install
 
 # Clone and build hfp_tcp
 WORKDIR /opt
 RUN --mount=type=ssh git clone git@github.com:gruenwelt/hfp_tcp.git
 
 WORKDIR /opt/hfp_tcp
-RUN make -j$(nproc) && make install
+RUN make -j$(nproc)
 
-# Clean up build dependencies
-RUN apt-get remove -y \
-    build-essential \
-    cmake \
-    pkg-config \
-    libusb-1.0-0-dev \
-    git \
-    openssh-client && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /opt/airspyhf /opt/hfp_tcp/*.o
+### ---- Stage 2: Runtime ----
+FROM ubuntu:22.04
 
-# Runtime-only dependencies
-RUN apt-get update && apt-get install -y libusb-1.0-0 && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Expose the TCP port if needed
-EXPOSE 1234
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libusb-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Default CMD (adjust to match your hfp_tcp usage)
-CMD ["hfp_tcp"]
+# Copy libairspyhf and hfp_tcp binary
+COPY --from=builder /usr/local/lib/libairspyhf.so* /usr/local/lib/
+COPY --from=builder /usr/local/include/libairspyhf* /usr/local/include/
+COPY --from=builder /opt/hfp_tcp/hfp_tcp /usr/local/bin/hfp_tcp
+
+RUN ldconfig
