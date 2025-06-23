@@ -9,9 +9,8 @@ This is a fork of [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp) with key e
 
 ## ✅ Key Improvements
 
-- **No more hardware lockups**: Airspy HF+ now releases cleanly when no client is connected.
+- **No more hardware lockups**: Airspy HF+ Discovery now releases cleanly when no client is connected.
 - **Dockerfile added**: Build and run without needing to configure the host system.
-- **Reduced runtime footprint**: Docker image uses only the runtime dependencies after stripping the build chain.
 
 ---
 
