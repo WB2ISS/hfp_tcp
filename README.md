@@ -55,11 +55,3 @@ docker run -d \
 ## 🔧 Alternatively: Manual Build Instructions
 If you want to build outside Docker directly on the host 👉 Refer to the original project for manual build instructions:
 [WB2ISS/hfp_tcp](https://github.com/WB2ISS/hfp_tcp)
-
----
-
-## 📜 License
-
-This project is released under the MIT License.
-
-You are free to use, modify, and distribute it with attribution.
