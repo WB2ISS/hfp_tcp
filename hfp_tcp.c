@@ -5,8 +5,9 @@
 //    from an Airspy HF+
 //    on port 1234
 //
-#define VERSION "v.1.2.121"
-//   v.1.2.121 2025.09.06  barry@medoff.com 
+#define VERSION "v.1.2.122"
+//   v.1.2.122 2026.09.07  barry@medoff.com
+//   v.1.2.121 2025.09.06  barry@medoff.com
 //   v.1.2.120 2025.09.06  barry@medoff.com
 //   v.1.2.119 2025-04-08  1pm gruenwelt
 //   v.1.2.118 2020-12-31  1pm barry@medoff.com
@@ -422,9 +423,21 @@ void *connection_handler()
 
     n = airspyhf_open_sn(&device, serialnum); // Only open Airspy HF+ after client connects
     printf("hf+ open status = %d\n", n);
-    if ((n < 0) || (device == NULL)) { exit(-1); }
 
-       char versionString[64];
+    if ((n < 0) || (device == NULL)) {
+        printf("Unable to open device\n");
+        
+        if (gClientSocketID > 0) {
+            close(gClientSocketID);
+            gClientSocketID = -1;
+            printf("Connection closed\n");
+        }
+        
+        return(NULL);
+    }
+
+
+    char versionString[64];
     uint8_t versionLength = 64;
 
     bzero((char *)&versionString[0], 64);
