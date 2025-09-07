@@ -5,8 +5,9 @@
 //    from an Airspy HF+
 //    on port 1234
 //
-#define VERSION "v.1.2.120"
-//   v.1.2.120 2025.09.06  barry@medoff.com 
+#define VERSION "v.1.2.121"
+//   v.1.2.121 2025.09.06  barry@medoff.com 
+//   v.1.2.120 2025.09.06  barry@medoff.com
 //   v.1.2.119 2025-04-08  1pm gruenwelt
 //   v.1.2.118 2020-12-31  1pm barry@medoff.com
 //   v.1.2.117 2020-09-02  rhn
@@ -506,7 +507,7 @@ void *connection_handler()
     printf("hf+ start status = %d\n", m);
     // usleep(500 * 1000);  // 500 ms delay after airspyhf_start() to ensure streaming starts cleanly (introducs static on start, cleaner solution?)
     if (m < 0) { exit(-1); }
-    usleep(250L * 1000L);
+    // usleep(250L * 1000L);
 
     // set a timeout so receive call won't block forever
     struct timeval timeout;
