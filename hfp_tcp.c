@@ -503,7 +503,7 @@ void *connection_handler()
     totalSamples  =  0;
     m = airspyhf_start(device, &usb_rcv_callback, &context);
     printf("hf+ start status = %d\n", m);
-    usleep(500 * 1000);  // 500 ms delay after airspyhf_start() to ensure streaming starts cleanly (introducs static on start, cleaner solution?)
+    // usleep(500 * 1000);  // 500 ms delay after airspyhf_start() to ensure streaming starts cleanly (introducs static on start, cleaner solution?)
     if (m < 0) { exit(-1); }
     usleep(250L * 1000L);
 
