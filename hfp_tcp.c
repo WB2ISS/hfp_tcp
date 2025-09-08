@@ -436,7 +436,6 @@ void *connection_handler()
         return(NULL);
     }
 
-
     char versionString[64];
     uint8_t versionLength = 64;
 
