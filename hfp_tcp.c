@@ -5,7 +5,7 @@
 //    from an Airspy HF+
 //    on port 1234
 //
-#define VERSION "v.1.2.124"
+#define VERSION "v.1.2.125"
 //
 //   v.1.2.118 2020-12-31  1pm barry@medoff.com
 //   v.1.2.117 2020-09-02  rhn
@@ -45,6 +45,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <math.h>
+#include <stdbool.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -77,7 +78,7 @@ uint64_t            serialnum   =  0;
 airspyhf_device_t   *device     =  NULL;
 airspyhf_transfer_t context;
 
-int             sendErrorFlag   =  0;
+bool             sendError      =  false;
 int             sampleBits      =  SAMPLE_BITS;
 int             numSampleRates  =  1;
 static long int totalSamples    =  0;
@@ -109,7 +110,7 @@ int main(int argc, char *argv[]) {
     
     struct sockaddr_in6 serv_addr ;
     char client_addr_ipv6[100];
-    int portno     =  PORT;     //
+    int portno   =  PORT;       //
     char *ipaddr =  NULL;       // "127.0.0.1"
     int n;
     
@@ -175,19 +176,15 @@ int main(int argc, char *argv[]) {
     // Try to open the device and get firmware version and sample rates
     
     n = airspyhf_open_sn(&device, serialnum);
-    printf("hf+ open status = %d\n", n);
     if ((n < 0) || (device == NULL)) {
         printf("hf+ busy or unavailable %d\n", n);
     } else {
         
         printHFplusFirmwareVersion();
-        
         printHFplusSamplingRates();
-        
-        n = airspyhf_close(device);
-        printf("hf+ close status = %d\n", n);
+        airspyhf_close(device);
+        device = NULL;
     }
-    
     
     printf("\nhfp_tcp server started on port %d\n", portno);
     
@@ -242,9 +239,6 @@ int main(int argc, char *argv[]) {
         
     }
     
-    n = airspyhf_close(device);
-    printf("hf+ close status = %d\n", n);
-    
     fflush(stdout);
     return 0;
 }  //  main
@@ -292,26 +286,38 @@ void printHFplusSamplingRates() {
     }
 }
 
+void stopDeviceAndCloseConnection() {
+    int m;
+    if (device != NULL) {
+        if (airspyhf_is_streaming(device)) {
+            printf("hf+ is running, stopping hf+ now\n");
+            m = airspyhf_stop(device);
+            printf("hf+ stop status = %d\n", m);
+        }
+        airspyhf_close(device);
+        printf("hf+ device closed\n");
+        device = NULL;
+    }
+    printf("closing connection\n");
+    if (gClientSocketID > 0) {
+        close(gClientSocketID);
+        gClientSocketID = -1;
+    }
+    fflush(stdout);
+}
+
 static void sighandler(int signum) {
     fprintf(stderr, "Signal caught, exiting!\n");
     fflush(stderr);
     close(listen_sockfd);
-    if (gClientSocketID != 0) {
-        close(gClientSocketID);
-        gClientSocketID = -1;
-    }
-    if (device != NULL) {
-        airspyhf_stop(device);
-        airspyhf_close(device);
-        device = NULL;
-    }
+    stopDeviceAndCloseConnection();
     exit(-1);
     do_exit = 1;
 }
 
 int stop_send_thread = 0;
-int thread_counter = 0;
-int thread_running = 0;
+int thread_counter   = 0;
+int thread_running   = 0;
 
 int  ring_buffer_size   =  RING_BUFFER_ALLOCATION;
 volatile long int ring_wr_index  =  0;
@@ -446,7 +452,7 @@ void *tcp_send_handler(void *param)
 #else
                 k = send(send_sockfd, tmpBuf, sz, MSG_NOSIGNAL);
 #endif
-                if (k <= 0) { sendErrorFlag = -1; }
+                if (k <= 0) { sendError = -1; }
                 // fprintf(stderr, "sent %d\n", k); // yyy yyy
                 // fflush(stderr);
                 totalSamples   +=  sz;
@@ -474,7 +480,11 @@ void *connection_handler()
     int n = 0;
     int m = 0;
     
-    n = airspyhf_open_sn(&device, serialnum); // Only open Airspy HF+ after client connects
+    bool commandFlooding = false;
+    bool badCommand      = false;
+    bool receiveError    = false;
+    
+    n = airspyhf_open_sn(&device, serialnum); // Open Airspy HF+ after client connects
     printf("hf+ open status = %d\n", n);
     
     if ((n < 0) || (device == NULL)) {
@@ -527,7 +537,6 @@ void *connection_handler()
         fflush(stdout);
     }
     
-    sendErrorFlag       =  0;
     stop_send_thread    =  0;
     ring_wr_index       =  0;
     ring_rd_index       =  0;
@@ -558,20 +567,21 @@ void *connection_handler()
     //           &timeout, sizeof(timeout) );
     
     n = 1;
-    while ((n > 0) && (sendErrorFlag == 0)) {
+    
+    while ((!badCommand) && (!receiveError) && (!sendError) && (!commandFlooding)) {
         int i, j, m;
         // receive 5 byte commands (or a multiple thereof)
         memset(buffer,0, 256);
         n = recv(gClientSocketID, buffer, 255, 0);
-        if ((n <= 0) || (sendErrorFlag != 0)) {
-            if (airspyhf_is_streaming(device)) {
-                fprintf(stdout,"stopping now 00 \n");
-                m = airspyhf_stop(device);
-            }
-            close(gClientSocketID);
-            gClientSocketID = -1;
-            fprintf(stdout, "hf+ stop status = %d\n", m);
-            fflush(stdout);
+        if (n < 1) {
+            receiveError = true;
+            printf("Receive Error\n");
+        }
+        if (n > 40*5) {
+            commandFlooding = true;
+            printf("Command Flooding\n");
+        }
+        if ( receiveError || sendError || commandFlooding || badCommand ) {
             break;
         }
         if (n > 0) {
@@ -665,7 +675,7 @@ void *connection_handler()
                 m = airspyhf_is_streaming(device);
                 printf("hf+ is running = %d\n", m);
                 if (m == 0) {    // restart if command stops things
-                    sendErrorFlag =  0;
+                    sendError =  false;
                     m = airspyhf_start(device, &usb_rcv_callback, &context);
                     fprintf(stdout, "hf+ start status = %d\n", m);
                     m = airspyhf_is_streaming(device);
@@ -681,22 +691,8 @@ void *connection_handler()
         // loop until error (socket close) or timeout
     } ;
     
-    m = airspyhf_is_streaming(device);
-    printf("hf+ is running = %d\n", m);
-    if (m) {
-        fprintf(stdout,"stopping now 00 \n");
-        m = airspyhf_stop(device);
-        printf("hf+ stop status = %d\n", m);
-    }
+    stopDeviceAndCloseConnection();
     
-    if (device != NULL) {
-        airspyhf_close(device);
-        printf("hf+ device closed\n");
-        device = NULL;
-    }
-    
-    close(gClientSocketID);
-    gClientSocketID = -1;
     printf("connection_handler finished, device fully released\n");
     return(param);
 } // connection_handler()
@@ -722,7 +718,7 @@ int usb_rcv_callback(airspyhf_transfer_t *context)
     int    n  =  context->sample_count;
     int       sz ;
     
-    if (sendErrorFlag != 0) { return(-1); }
+    if (sendError) { return(-1); }
     if (do_exit != 0) { return(-1); }
     //
     if ((sendblockcount % 1000) == 0) {
