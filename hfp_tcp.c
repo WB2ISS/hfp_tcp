@@ -3,9 +3,10 @@
 //
 //  Serves IQ data using the rtl_tcp protocol
 //    from an Airspy HF+
-//    on port 1234
+//     on port 1234 by default
+//     or on port specified by -p <port>
 //
-#define VERSION "v.1.2.125"
+#define VERSION "v.1.2.126"
 //
 //   v.1.2.118 2020-12-31  1pm barry@medoff.com
 //   v.1.2.117 2020-09-02  rhn
@@ -24,13 +25,13 @@
 //   requires these 2 files to compile
 //     airspyhf.h
 //     libairspyhf.1.6.8.dylib or /usr/local/lib/libairspyhf.so.1.6.8
-//   from libairspyhf at https://github.com/airspy/airspyhf
+//     from libairspyhf at https://github.com/airspy/airspyhf
 //
-
+//  useage:
+//      hfp_tcp [-b 16] [-p <port>]
+//
 #define SOCKET_READ_TIMEOUT_SEC ( 10.0 * 60.0 )
 #define SAMPLE_BITS     ( 8)    // default to match rtl_tcp
-// #define SAMPLE_BITS  (16)    // default to match rsp_tcp
-// #define SAMPLE_BITS  (32)    // HF+ capable of float32 IQ data
 #define GAIN8           (64.0)  // default gain
 #define PORT            (1234)  // default port
 #define RING_BUFFER_ALLOCATION  (2L * 8L * 1024L * 1024L)  // 16MB
@@ -69,16 +70,21 @@ void *tcp_send_handler(void *param);
 int usb_rcv_callback(airspyhf_transfer_t *context);
 static void sighandler(int signum);
 
-void printUsageStringAndExit();
+void printUsageString();
 void printAirspyLibraryVersion();
 void printHFplusFirmwareVersion();
 void printHFplusSamplingRates();
+
+void stopDeviceAndCloseConnection();
+void closeListener();
 
 uint64_t            serialnum   =  0;
 airspyhf_device_t   *device     =  NULL;
 airspyhf_transfer_t context;
 
-bool             sendError      =  false;
+bool receiveError = false;
+bool sendError    = false;
+
 int             sampleBits      =  SAMPLE_BITS;
 int             numSampleRates  =  1;
 static long int totalSamples    =  0;
@@ -94,17 +100,16 @@ int		filterFlag	        =  0;
 void 	iir_fbc(float *s, int n, int order);
 void 	init_iir();
 
-static int    listen_sockfd = -1;
+static int          listen_sockfd = -1;
 struct sigaction    sigact, sigign;
-static volatile int     do_exit =  0;
-float       acc_r              =  0.0;    // accumulated rounding
-float       sMax               =  0.0;    // for debug
-float       sMin               =  0.0;
-int         sendblockcount  =  0;
-int 		threads_running =  0;
+
+float   acc_r       =  0.0;    // accumulated rounding
+float   sMax        =  0.0;    // for debug
+float   sMin        =  0.0;
+int     sendblockcount  =  0;
 
 char UsageString[]
-= "Usage:    [-p listen port (default: 1234)]\n          [-b 16]";
+= "Usage:    [-p <listen port> (default: 1234)]\n          [-b 16]";
 
 int main(int argc, char *argv[]) {
     
@@ -118,14 +123,19 @@ int main(int argc, char *argv[]) {
     
     if (argc > 1) {
         if ((argc % 2) != 1) {
-            printUsageStringAndExit();
+            stopDeviceAndCloseConnection();
+            closeListener();
+            printUsageString();
+            exit(-1);
         }
         for (int arg=3; arg<=argc; arg+=2) {
             if (strcmp(argv[arg-2], "-p")==0) {
                 portno = atoi(argv[arg-1]);
-                if (portno == 0) {
-                    printf("invalid port number entry %s\n", argv[arg-1]);
-                    exit(0);
+                if ((portno <= 0) || (portno> 65535)) {
+                    printf("invalid port number %s\n", argv[arg-1]);
+                    stopDeviceAndCloseConnection();
+                    closeListener();
+                    exit(-1);
                 }
             } else if (strcmp(argv[arg-2], "-b")==0) {
                 if (strcmp(argv[arg-1],"16")==0) {
@@ -133,10 +143,16 @@ int main(int argc, char *argv[]) {
                 } else if (strcmp(argv[arg-1],"8")==0) {
                     sampleBits =  8;
                 } else {
-                    printUsageStringAndExit();
+                    stopDeviceAndCloseConnection();
+                    closeListener();
+                    printUsageString();
+                    exit(-1);
                 }
             } else {
-                printUsageStringAndExit();
+                stopDeviceAndCloseConnection();
+                closeListener();
+                printUsageString();
+                exit(0);
             }
         }
     }
@@ -178,22 +194,22 @@ int main(int argc, char *argv[]) {
     n = airspyhf_open_sn(&device, serialnum);
     if ((n < 0) || (device == NULL)) {
         printf("hf+ busy or unavailable %d\n", n);
+        device = NULL;
     } else {
-        
         printHFplusFirmwareVersion();
         printHFplusSamplingRates();
         airspyhf_close(device);
         device = NULL;
     }
     
-    printf("\nhfp_tcp server started on port %d\n", portno);
-    
     listen_sockfd = socket(AF_INET6, SOCK_STREAM, 0);
     if (listen_sockfd < 0) {
         printf("ERROR opening socket");
-        return(-1);
+        exit(-1);
     }
     
+    printf("\nhfp_tcp server started on port %d\n", portno);
+
     struct linger ling = {1,0};
     int rr = 1;
     setsockopt(listen_sockfd, SOL_SOCKET, SO_REUSEADDR,
@@ -211,11 +227,11 @@ int main(int argc, char *argv[]) {
     if (bind( listen_sockfd, (struct sockaddr *)&serv_addr,
              sizeof(serv_addr) ) < 0) {
         printf("ERROR on bind to listen\n");
-        return(-1);
+        exit(-1);
     }
     
     listen(listen_sockfd, 5);
-    fprintf(stdout, "listening for socket connection \n");
+    printf("listening for socket connection \n");
     
     while (1) {
         
@@ -243,9 +259,8 @@ int main(int argc, char *argv[]) {
     return 0;
 }  //  main
 
-void printUsageStringAndExit() {
+void printUsageString() {
     printf("%s\n", UsageString);
-    exit(0);
 }
 
 void printAirspyLibraryVersion() {
@@ -298,26 +313,31 @@ void stopDeviceAndCloseConnection() {
         printf("hf+ device closed\n");
         device = NULL;
     }
-    printf("closing connection\n");
+    
     if (gClientSocketID > 0) {
+        printf("closing connection\n");
         close(gClientSocketID);
-        gClientSocketID = -1;
     }
+    gClientSocketID = -1;
+    fflush(stdout);
+}
+
+void closeListener() {
+    if (listen_sockfd > 0) {
+        printf("closing listener\n");
+        close(listen_sockfd);
+    }
+    listen_sockfd = -1;
     fflush(stdout);
 }
 
 static void sighandler(int signum) {
-    fprintf(stderr, "Signal caught, exiting!\n");
-    fflush(stderr);
-    close(listen_sockfd);
+    printf("Signal caught, exiting!\n");
     stopDeviceAndCloseConnection();
+    closeListener();
+    fflush(stdout);
     exit(-1);
-    do_exit = 1;
 }
-
-int stop_send_thread = 0;
-int thread_counter   = 0;
-int thread_running   = 0;
 
 int  ring_buffer_size   =  RING_BUFFER_ALLOCATION;
 volatile long int ring_wr_index  =  0;
@@ -425,53 +445,40 @@ int ring_read(uint8_t *to_ptr, int amount, int always)
 float tmpFPBuf[4*32768];
 uint8_t tmpBuf[4*32768];
 
-void send_delay(int n, int rate)
-{
-    int n1 = n;					// n in bytes
-    if (sampleBits == 16) { n1 = n / 2; }	// convert to samples
-    if (sampleBits == 32) { n1 = n / 4; }	// convert to samples
-    double dt = 0.10 * (double)n1 / rate; // fraction of a second
-    unsigned int dt_uS = floor(1.0e6 * dt);	// 10X too fast
-    usleep(dt_uS);
-}
-
 void *tcp_send_handler(void *param)
 {
     int sz0   =     1408;                      // MTU size ?
     int pad   =    32768 * 2;
-    printf("send thread %d running 2 \n", thread_counter);
-    while (stop_send_thread == 0) {
-        if (gClientSocketID  <  0) { break; }
+    
+    while (1) {
+        if (gClientSocketID  <  0) {
+            sendError = true;
+            break;
+        }
         if (ring_data_available() >= (sz0 + pad)) {
             int sz = ring_read(tmpBuf, sz0, 0);
             if (sz > 0) {
                 int k = 0;
                 int send_sockfd = gClientSocketID ;
-#ifdef __APPLE__
+    #ifdef __APPLE__
                 k = send(send_sockfd, tmpBuf, sz, 0);
-#else
+    #else
                 k = send(send_sockfd, tmpBuf, sz, MSG_NOSIGNAL);
-#endif
-                if (k <= 0) { sendError = -1; }
-                // fprintf(stderr, "sent %d\n", k); // yyy yyy
-                // fflush(stderr);
+    #endif
+                if (k <= 0) {
+                    sendError = true;
+                    break;
+                }
                 totalSamples   +=  sz;
                 sendblockcount +=  1;
             }
             pad = 0;
         } else {
-            // fprintf(stdout, "send blocked \n" ); // yyy yyy
-            // fflush(stdout);
-            // send_delay(sz0, sampRate);
             usleep(1);
         }
     }
+    printf("tcp send thread stopping\n");
     pthread_exit(NULL);
-    fprintf(stderr, "tcp send thread %d stopped\n", thread_counter);
-    fflush(stderr);
-    threads_running -= 1;
-    stop_send_thread = 0;
-    return(NULL);
 }
 
 void *connection_handler()
@@ -480,22 +487,31 @@ void *connection_handler()
     int n = 0;
     int m = 0;
     
-    bool commandFlooding = false;
-    bool badCommand      = false;
-    bool receiveError    = false;
+    bool commandFlooding   = false;
+    bool badCommand        = false;
+    bool threadCreateError = false;
+    bool startError        = false;
+    
+    sendError         = false;
+    receiveError      = false;
+    
+    ring_wr_index     =  0;
+    ring_rd_index     =  0;
+    
+    pthread_t tcp_send_thread;
+    long int *param = (long int *)malloc(4 * sizeof(long int));
+    param[0]            =  0;
     
     n = airspyhf_open_sn(&device, serialnum); // Open Airspy HF+ after client connects
     printf("hf+ open status = %d\n", n);
     
     if ((n < 0) || (device == NULL)) {
         printf("Unable to open device\n");
-        
         if (gClientSocketID > 0) {
             close(gClientSocketID);
-            gClientSocketID = -1;
             printf("Connection closed\n");
         }
-        
+        gClientSocketID = -1;
         return(NULL);
     }
     
@@ -509,8 +525,6 @@ void *connection_handler()
     long int f0 = 162450000;
     n = airspyhf_set_freq(device, f0);
     printf("set f0 status = %ld %d\n", f0, n);
-    
-    if (do_exit != 0) { return(NULL); }
     
     m = airspyhf_is_streaming(device);
     if (m > 0) {    // stop before restarting
@@ -533,23 +547,23 @@ void *connection_handler()
 #else
         n = send(gClientSocketID, header, sz, MSG_NOSIGNAL);
 #endif
-        fprintf(stdout, "header sent %d\n", n); // yyy yyy
-        fflush(stdout);
+        if (n > 0) {
+            printf("header sent %d\n", n);
+        } else {
+            sendError = true;
+            printf("error sending header\n");
+        }
+        
     }
     
-    stop_send_thread    =  0;
-    ring_wr_index       =  0;
-    ring_rd_index       =  0;
-    pthread_t tcp_send_thread;
-    long int *param = (long int *)malloc(4 * sizeof(long int));
-    param[0]            =  0;
+   
     if ( pthread_create( &tcp_send_thread, NULL ,
                         tcp_send_handler,
                         (void *)param) < 0) {
-        printf("could not create tcp send thread");
-        return(NULL);
+        threadCreateError = true;
+        printf("could not create tcp send thread\n");
     } else {
-        printf("send thread started 1 \n");
+        printf("send thread started\n");
     }
     
     acc_r         =  0.0;
@@ -557,7 +571,10 @@ void *connection_handler()
     m = airspyhf_start(device, &usb_rcv_callback, &context);
     printf("hf+ start status = %d\n", m);
 
-    if (m < 0) { exit(-1); }
+    if (m < 0) {
+        startError = true;
+        printf("unable to start hf+\n");
+    }
     
     // set a timeout so receive call won't block forever
     struct timeval timeout;
@@ -566,9 +583,9 @@ void *connection_handler()
     //setsockopt( gClientSocketID, SOL_SOCKET, SO_RCVTIMEO,
     //           &timeout, sizeof(timeout) );
     
-    n = 1;
     
-    while ((!badCommand) && (!receiveError) && (!sendError) && (!commandFlooding)) {
+    while ( !( threadCreateError || startError || badCommand || receiveError || sendError || commandFlooding ) ) {
+    
         int i, j, m;
         // receive 5 byte commands (or a multiple thereof)
         memset(buffer,0, 256);
@@ -576,14 +593,14 @@ void *connection_handler()
         if (n < 1) {
             receiveError = true;
             printf("Receive Error\n");
+            continue;
         }
         if (n > 40*5) {
             commandFlooding = true;
             printf("Command Flooding\n");
+            continue;
         }
-        if ( receiveError || sendError || commandFlooding || badCommand ) {
-            break;
-        }
+  
         if (n > 0) {
             int msg1 = buffer[0];
             if (msg1 != 4) {
@@ -679,7 +696,7 @@ void *connection_handler()
                     m = airspyhf_start(device, &usb_rcv_callback, &context);
                     fprintf(stdout, "hf+ start status = %d\n", m);
                     m = airspyhf_is_streaming(device);
-                    fprintf(stdout, "hf+ is running = %d\n", m);
+                    printf("hf+ is running = %d\n", m);
                     fflush(stdout);
                 }
             }
@@ -692,12 +709,9 @@ void *connection_handler()
     } ;
     
     stopDeviceAndCloseConnection();
-    
     printf("connection_handler finished, device fully released\n");
     return(param);
 } // connection_handler()
-
-// uint8_t tmpBuf[4*32768];
 
 typedef union
 {
@@ -719,14 +733,12 @@ int usb_rcv_callback(airspyhf_transfer_t *context)
     int       sz ;
     
     if (sendError) { return(-1); }
-    if (do_exit != 0) { return(-1); }
     //
     if ((sendblockcount % 1000) == 0) {
         fprintf(stdout,"+"); fflush(stdout);
     }
     //
     if (p != NULL && n > 0) {
-        // fwrite(p, 8, n, file);
         uint8_t *dataBuffer    =  (uint8_t *)p; 	// unneeded line
         memcpy(&tmpFPBuf[0], p, 8*n);
         if (filterFlag != 0) {
@@ -788,17 +800,12 @@ int usb_rcv_callback(airspyhf_transfer_t *context)
         }
         int wrap = ring_write(dataBuffer, sz);
         if (wrap != 0) {
-            // fprintf(stderr, "ring wrap around error %d\n", wrap); // yyy
-            // fflush(stderr);
+            printf("ring wrap around error %d\n", wrap);
         }
-        wrap = 0; 				// yyy yyy
-        if ((do_exit != 0) || (wrap != 0)) {
-            stop_send_thread = 0;
-            return(-1);
-        }
+        wrap = 0;
+        
         totalSamples += n;
     }
-    sendblockcount += 1;
     return(0);
 }
 
