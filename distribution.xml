@@ -12,5 +12,5 @@
     <choice id="hfp_tcp" visible="false">
         <pkg-ref id="hfp_tcp"/>
     </choice>
-    <pkg-ref id="hfp_tcp" version="0" onConclusion="none">hfp_tcp-1.2.119-macos12-L.pkg</pkg-ref>
+    <pkg-ref id="hfp_tcp" version="0" onConclusion="none">hfp_tcp-1.2.126-macos12-L.pkg</pkg-ref>
 </installer-gui-script>

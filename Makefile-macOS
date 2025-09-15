@@ -9,7 +9,7 @@
 # make -f ../Makefile-macOS [hfp_tcp|dmg|pkg|all|clean]
 
 EXECUTABLE 					= hfp_tcp
-VERSION     				= 1.2.119
+VERSION     				= 1.2.126
 MACOS								= macos12
 PROFILE     				= "SDR"
 
